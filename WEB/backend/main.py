@@ -302,9 +302,11 @@ def send_discord_webhook(job: RenderJob):
         cleanup_hf_space()
         return
         
+    use_proxy = False
+    proxy_url = "https://dkc-soft-srtg.vercel.app/api/proxy"
     if os.getenv("SPACE_ID") and webhook_url.startswith("https://discord.com/"):
-        webhook_url = webhook_url.replace("https://discord.com/", "https://webhook.lewisakura.moe/", 1)
-        logger.info(f"Automatically rewrote Discord Webhook URL to proxy: {webhook_url}")
+        use_proxy = True
+        logger.info(f"Routing Discord Webhook via private Vercel proxy: {proxy_url}")
         
     try:
         # Calculate rendering duration
@@ -366,7 +368,10 @@ def send_discord_webhook(job: RenderJob):
         for attempt in range(max_retries):
             try:
                 logger.info(f"Sending webhook to Discord (attempt {attempt + 1}/{max_retries})...")
-                resp = requests.post(webhook_url, json=payload, timeout=60)
+                if use_proxy:
+                    resp = requests.post(proxy_url, json={"webhook_url": webhook_url, "payload": payload}, timeout=60)
+                else:
+                    resp = requests.post(webhook_url, json=payload, timeout=60)
                 if resp.status_code == 429:
                     try:
                         retry_after = float(resp.json().get("retry_after", 2))
