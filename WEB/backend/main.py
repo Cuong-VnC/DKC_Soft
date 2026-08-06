@@ -363,8 +363,11 @@ def start_render(req: RenderRequest, background_tasks: BackgroundTasks):
                     job.output_file = out_files[-1]
             
         logger.info(f"Job {job_id} finished. Status: {job.status}. Message: {message}")
-        # Trigger Discord webhook notification in the background
-        background_tasks.add_task(send_discord_webhook, job)
+        # Trigger Discord webhook notification directly inside the generator thread
+        try:
+            send_discord_webhook(job)
+        except Exception as e:
+            logger.error(f"Failed to call send_discord_webhook: {e}")
         
     # Standardize export directory to backend output folder
     settings["export_dir"] = OUTPUT_DIR
