@@ -98,6 +98,41 @@ def get_product() -> str:
 def verify_offline_license() -> bool:
     return True
 
+# Environment variables for web authentication
+WEB_USERNAME = os.getenv("HF_USERNAME") or os.getenv("ADMIN_USERNAME") or os.getenv("USERNAME")
+WEB_PASSWORD = os.getenv("HF_PASSWORD") or os.getenv("ADMIN_PASSWORD") or os.getenv("PASSWORD")
+
+import hashlib
+from fastapi import Header, Depends
+
+def generate_token(username, password) -> str:
+    """Generates a state-free SHA-256 session token."""
+    raw = f"{username}:{password}:{CLIENT_SECRET_SALT}"
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+def verify_token(token: Optional[str]) -> bool:
+    """Verifies if the provided token matches the expected credentials token."""
+    if not WEB_USERNAME or not WEB_PASSWORD:
+        return True
+    if not token:
+        return False
+    expected_token = generate_token(WEB_USERNAME, WEB_PASSWORD)
+    return token == expected_token
+
+def check_auth(authorization: Optional[str] = Header(None)):
+    """FastAPI Dependency to enforce authentication when credentials are set."""
+    if WEB_USERNAME and WEB_PASSWORD:
+        token = None
+        if authorization and authorization.startswith("Bearer "):
+            token = authorization.split(" ")[1]
+        
+        if not verify_token(token):
+            raise HTTPException(status_code=401, detail="Unauthorized")
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
 class ActivateRequest(BaseModel):
     key: str
 
@@ -227,12 +262,43 @@ async def startup_event():
     # Start the R2 cleanup loop in the background
     asyncio.create_task(cleanup_r2_periodically())
 
+def cleanup_hf_space():
+    """Deletes all local uploaded files and output videos on Hugging Face (Lựa chọn 1)."""
+    logger.info("Cleaning up Hugging Face disk space (Lựa chọn 1)...")
+    
+    # 1. Clean UPLOAD_DIR (preserve subdirectories but delete files)
+    if os.path.exists(UPLOAD_DIR):
+        for root, dirs, files in os.walk(UPLOAD_DIR):
+            for file in files:
+                file_path = os.path.join(root, file)
+                try:
+                    os.remove(file_path)
+                    logger.info(f"Deleted uploaded file: {file_path}")
+                except Exception as e:
+                    logger.warning(f"Could not delete uploaded file {file_path}: {e}")
+                    
+    # 2. Clean OUTPUT_DIR (preserve directory but delete files)
+    if os.path.exists(OUTPUT_DIR):
+        for root, dirs, files in os.walk(OUTPUT_DIR):
+            for file in files:
+                file_path = os.path.join(root, file)
+                try:
+                    os.remove(file_path)
+                    logger.info(f"Deleted output file: {file_path}")
+                except Exception as e:
+                    logger.warning(f"Could not delete output file {file_path}: {e}")
+
 # --- WEBHOOK NOTIFIER ---
 
 def send_discord_webhook(job: RenderJob):
     """Sends background notifications to Discord webhook when rendering completes."""
+    import gc
+    gc.collect()
+    time.sleep(1.0)
+    
     if not DISCORD_WEBHOOK_URL:
-        logger.warning("Discord Webhook URL not set. Skipping notification.")
+        logger.warning("Discord Webhook URL not set. Skipping notification. Cleaning up space.")
+        cleanup_hf_space()
         return
         
     try:
@@ -290,12 +356,12 @@ def send_discord_webhook(job: RenderJob):
             ]
             
         # Retry mechanism for Discord Webhook POST requests (handling transient timeouts and rate limits)
-        max_retries = 3
+        max_retries = 10
         retry_delay = 2
         for attempt in range(max_retries):
             try:
                 logger.info(f"Sending webhook to Discord (attempt {attempt + 1}/{max_retries})...")
-                resp = requests.post(DISCORD_WEBHOOK_URL, json=payload, timeout=10)
+                resp = requests.post(DISCORD_WEBHOOK_URL, json=payload, timeout=(10, 60))
                 if resp.status_code == 429:
                     try:
                         retry_after = float(resp.json().get("retry_after", 2))
@@ -320,19 +386,40 @@ def send_discord_webhook(job: RenderJob):
                     logger.error(f"Failed to send Discord Webhook after {max_retries} attempts.")
     except Exception as e:
         logger.error(f"Failed to prepare or send Discord Webhook: {e}")
+    finally:
+        # Perform disk cleanup unconditionally
+        cleanup_hf_space()
 
 # --- API ROUTES ---
 
 @app.get("/api/auth/status")
-def auth_status():
+def auth_status(token: Optional[str] = None):
+    auth_required = bool(WEB_USERNAME and WEB_PASSWORD)
+    authenticated = True
+    if auth_required:
+        authenticated = verify_token(token)
+        
     activated = verify_offline_license()
     return {
         "activated": activated,
+        "auth_required": auth_required,
+        "authenticated": authenticated,
         "message": "Đã kích hoạt bản quyền" if activated else "Chưa kích hoạt bản quyền"
     }
 
+@app.post("/api/auth/login")
+def auth_login(req: LoginRequest):
+    if not WEB_USERNAME or not WEB_PASSWORD:
+        return {"success": True, "token": ""}
+        
+    if req.username == WEB_USERNAME and req.password == WEB_PASSWORD:
+        token = generate_token(WEB_USERNAME, WEB_PASSWORD)
+        return {"success": True, "token": token}
+    else:
+        raise HTTPException(status_code=400, detail="Sai tài khoản hoặc mật khẩu!")
+
 @app.post("/api/auth/activate")
-def auth_activate(req: ActivateRequest):
+def auth_activate(req: ActivateRequest, _ = Depends(check_auth)):
     key = req.key.strip()
     if not key:
         raise HTTPException(status_code=400, detail="Vui lòng nhập License Key!")
@@ -371,7 +458,7 @@ def auth_activate(req: ActivateRequest):
         return {"success": False, "message": "Không thể kết nối tới máy chủ xác thực bản quyền."}
 
 @app.get("/api/assets")
-def list_assets():
+def list_assets(_ = Depends(check_auth)):
     """Lists standard/custom background textures and brushes available on the server."""
     # List backgrounds
     bg_dir = os.path.join(ASSETS_DIR, "backgrounds")
@@ -395,7 +482,7 @@ def list_assets():
     }
 
 @app.get("/api/voices")
-async def list_voices():
+async def list_voices(_ = Depends(check_auth)):
     """Gets cached list of edge-tts and capcut speakers."""
     edge_gen = EdgeTTSGenerator()
     capcut_gen = CapCutTTSGenerator()
@@ -409,7 +496,7 @@ async def list_voices():
     }
 
 @app.post("/api/upload/{upload_type}")
-async def upload_file(upload_type: str, file: UploadFile = File(...)):
+async def upload_file(upload_type: str, file: UploadFile = File(...), _ = Depends(check_auth)):
     """Handles asset uploading: scenes, bgm, logos, custom brushes, backgrounds."""
     if upload_type not in ["image", "bgm", "logo", "brush", "background"]:
         raise HTTPException(status_code=400, detail="Loại upload không hợp lệ.")
@@ -456,7 +543,7 @@ class RenderRequest(BaseModel):
     settings: Dict[str, Any]
 
 @app.post("/api/render/start")
-def start_render(req: RenderRequest, background_tasks: BackgroundTasks):
+def start_render(req: RenderRequest, background_tasks: BackgroundTasks, _ = Depends(check_auth)):
     """Starts the video generation job."""
     # Check license before rendering
     if not verify_offline_license():
@@ -501,11 +588,11 @@ def start_render(req: RenderRequest, background_tasks: BackgroundTasks):
                     job.output_file = out_files[-1]
             
         logger.info(f"Job {job_id} finished. Status: {job.status}. Message: {message}")
-        # Trigger Discord webhook notification directly inside the generator thread
+        # Trigger Discord webhook notification in a separate daemon thread to release main engine resources
         try:
-            send_discord_webhook(job)
+            threading.Thread(target=send_discord_webhook, args=(job,), daemon=True).start()
         except Exception as e:
-            logger.error(f"Failed to call send_discord_webhook: {e}")
+            logger.error(f"Failed to start send_discord_webhook thread: {e}")
         
     # Standardize export directory to backend output folder
     settings["export_dir"] = OUTPUT_DIR
@@ -554,7 +641,7 @@ def translate_url_to_path(url: str) -> str:
     return url
 
 @app.post("/api/render/pause/{job_id}")
-def pause_render(job_id: str):
+def pause_render(job_id: str, _ = Depends(check_auth)):
     job = jobs_store.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job không tồn tại.")
@@ -563,7 +650,7 @@ def pause_render(job_id: str):
     return {"success": True, "status": "paused"}
 
 @app.post("/api/render/resume/{job_id}")
-def resume_render(job_id: str):
+def resume_render(job_id: str, _ = Depends(check_auth)):
     job = jobs_store.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job không tồn tại.")
@@ -572,7 +659,7 @@ def resume_render(job_id: str):
     return {"success": True, "status": "running"}
 
 @app.post("/api/render/cancel/{job_id}")
-def cancel_render(job_id: str):
+def cancel_render(job_id: str, _ = Depends(check_auth)):
     job = jobs_store.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job không tồn tại.")
@@ -581,7 +668,13 @@ def cancel_render(job_id: str):
     return {"success": True, "status": "cancelled"}
 
 @app.get("/api/render/status/{job_id}")
-def query_render_status(job_id: str):
+def query_render_status(job_id: str, token: Optional[str] = None, authorization: Optional[str] = Header(None)):
+    if WEB_USERNAME and WEB_PASSWORD:
+        req_token = token
+        if not req_token and authorization and authorization.startswith("Bearer "):
+            req_token = authorization.split(" ")[1]
+        if not verify_token(req_token):
+            raise HTTPException(status_code=401, detail="Unauthorized")
     job = jobs_store.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job không tồn tại.")
@@ -589,6 +682,8 @@ def query_render_status(job_id: str):
         download_url = None
         if job.status == "success" and job.output_file:
             download_url = f"/api/download/{os.path.basename(job.output_file)}"
+            if req_token:
+                download_url += f"?token={req_token}"
             
         return {
             "job_id": job.job_id,
@@ -599,14 +694,20 @@ def query_render_status(job_id: str):
         }
 
 @app.get("/api/download/{filename}")
-def download_video(filename: str):
+def download_video(filename: str, token: Optional[str] = None, authorization: Optional[str] = Header(None)):
+    if WEB_USERNAME and WEB_PASSWORD:
+        req_token = token
+        if not req_token and authorization and authorization.startswith("Bearer "):
+            req_token = authorization.split(" ")[1]
+        if not verify_token(req_token):
+            raise HTTPException(status_code=401, detail="Unauthorized")
     path = os.path.join(OUTPUT_DIR, filename)
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="File không tồn tại.")
     return FileResponse(path, media_type="video/mp4", filename=filename)
 
 @app.get("/api/history")
-def list_history():
+def list_history(_ = Depends(check_auth)):
     """Lists history of previously generated videos inside the output folder."""
     if not os.path.exists(OUTPUT_DIR):
         return []
@@ -633,7 +734,14 @@ async def ws_render_monitor(websocket: WebSocket):
     await websocket.accept()
     query_params = websocket.query_params
     job_id = query_params.get("job_id")
+    token = query_params.get("token")
     
+    if WEB_USERNAME and WEB_PASSWORD:
+        if not verify_token(token):
+            await websocket.send_json({"error": "Unauthorized"})
+            await websocket.close()
+            return
+            
     if not job_id or job_id not in jobs_store:
         await websocket.send_json({"error": "Mã Job không hợp lệ."})
         await websocket.close()
@@ -660,6 +768,12 @@ async def ws_render_monitor(websocket: WebSocket):
                 else:
                     eta = 0
                     
+                download_url = None
+                if job.status == "success" and job.output_file:
+                    download_url = f"/api/download/{os.path.basename(job.output_file)}"
+                    if token:
+                        download_url += f"?token={token}"
+
                 payload = {
                     "job_id": job.job_id,
                     "status": job.status,
@@ -668,7 +782,8 @@ async def ws_render_monitor(websocket: WebSocket):
                     "eta_seconds": eta,
                     "elapsed_seconds": int(elapsed),
                     "new_logs": new_logs,
-                    "preview_frame": job.latest_frame_b64
+                    "preview_frame": job.latest_frame_b64,
+                    "download_url": download_url
                 }
                 
                 # Clear preview frame after reading to save bandwidth

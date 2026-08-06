@@ -15,6 +15,29 @@ console.log("DKC Backend API Base URL:", API_BASE);
 // Resolve WS URL from HTTP URL
 const WS_BASE = API_BASE.replace(/^http/, "ws");
 
+// Intercept all fetch requests to automatically add Authorization header if token exists
+const originalFetch = window.fetch;
+window.fetch = function (url, options) {
+    options = options || {};
+    const token = localStorage.getItem("dkc_auth_token");
+    if (token && url.toString().startsWith(API_BASE)) {
+        options.headers = options.headers || {};
+        if (options.headers instanceof Headers) {
+            options.headers.set("Authorization", `Bearer ${token}`);
+        } else if (Array.isArray(options.headers)) {
+            const hasAuth = options.headers.some(h => h[0].toLowerCase() === 'authorization');
+            if (!hasAuth) {
+                options.headers.push(["Authorization", `Bearer ${token}`]);
+            }
+        } else {
+            if (!options.headers["Authorization"]) {
+                options.headers["Authorization"] = `Bearer ${token}`;
+            }
+        }
+    }
+    return originalFetch(url, options);
+};
+
 let edgeVoices = [];
 let capcutVoices = [];
 let scenes = [];
@@ -134,12 +157,97 @@ const canvasCtx = elements.previewCanvas.getContext("2d");
 document.addEventListener("DOMContentLoaded", () => {
     initTheme();
     setupEventListeners();
-    loadAssetsLists();
-    loadVoicesList();
-    
-    // Add initial empty scene
-    addScene();
+    setupLoginListeners();
+    checkAuthStatus();
 });
+
+async function checkAuthStatus() {
+    const token = localStorage.getItem("dkc_auth_token") || "";
+    try {
+        const resp = await originalFetch(`${API_BASE}/api/auth/status?token=${token}`);
+        const data = await resp.json();
+        
+        const loginModal = document.getElementById("login-modal");
+        if (!loginModal) return;
+        
+        if (data.auth_required && !data.authenticated) {
+            loginModal.classList.add("active");
+            return false;
+        } else {
+            loginModal.classList.remove("active");
+            
+            // Load application data
+            loadAssetsLists();
+            loadVoicesList();
+            
+            return true;
+        }
+    } catch (e) {
+        console.error("Auth status check failed:", e);
+        // Fallback to normal loading if API is unreachable
+        loadAssetsLists();
+        loadVoicesList();
+    }
+}
+
+function setupLoginListeners() {
+    const btnSubmit = document.getElementById("btn-login-submit");
+    const txtUser = document.getElementById("login-username");
+    const txtPass = document.getElementById("login-password");
+    const lblStatus = document.getElementById("auth-status-lbl");
+    
+    if (!btnSubmit) return;
+    
+    btnSubmit.addEventListener("click", async () => {
+        const username = txtUser.value.trim();
+        const password = txtPass.value;
+        
+        if (!username || !password) {
+            lblStatus.className = "error";
+            lblStatus.textContent = "Vui lòng nhập đầy đủ tài khoản và mật khẩu!";
+            return;
+        }
+        
+        btnSubmit.disabled = true;
+        lblStatus.className = "info";
+        lblStatus.textContent = "Đang đăng nhập...";
+        
+        try {
+            const resp = await originalFetch(`${API_BASE}/api/auth/login`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username, password })
+            });
+            
+            const data = await resp.json();
+            btnSubmit.disabled = false;
+            
+            if (resp.ok && data.success) {
+                localStorage.setItem("dkc_auth_token", data.token);
+                lblStatus.className = "success";
+                lblStatus.textContent = "Đăng nhập thành công!";
+                
+                setTimeout(() => {
+                    checkAuthStatus();
+                }, 500);
+            } else {
+                lblStatus.className = "error";
+                lblStatus.textContent = data.detail || "Đăng nhập thất bại!";
+            }
+        } catch (e) {
+            btnSubmit.disabled = false;
+            lblStatus.className = "error";
+            lblStatus.textContent = "Lỗi kết nối tới máy chủ!";
+            console.error(e);
+        }
+    });
+    
+    const handleEnter = (e) => {
+        if (e.key === "Enter") btnSubmit.click();
+    };
+    if (txtUser) txtUser.addEventListener("keydown", handleEnter);
+    if (txtPass) txtPass.addEventListener("keydown", handleEnter);
+}
 
 // --- THEME MANAGEMENT ---
 function initTheme() {
@@ -1061,7 +1169,8 @@ function connectWebSocket(jobId) {
         wsConn.close();
     }
     
-    const wsUrl = `${WS_BASE}/ws/render?job_id=${jobId}`;
+    const token = localStorage.getItem("dkc_auth_token");
+    const wsUrl = `${WS_BASE}/ws/render?job_id=${jobId}${token ? `&token=${token}` : ""}`;
     wsConn = new WebSocket(wsUrl);
     
     wsConn.onopen = () => {
