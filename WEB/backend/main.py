@@ -289,12 +289,37 @@ def send_discord_webhook(job: RenderJob):
                 }
             ]
             
-        resp = requests.post(DISCORD_WEBHOOK_URL, json=payload, timeout=10)
-        if resp.status_code >= 400:
-            logger.error(f"Discord Webhook returned status code {resp.status_code}: {resp.text}")
+        # Retry mechanism for Discord Webhook POST requests (handling transient timeouts and rate limits)
+        max_retries = 3
+        retry_delay = 2
+        for attempt in range(max_retries):
+            try:
+                logger.info(f"Sending webhook to Discord (attempt {attempt + 1}/{max_retries})...")
+                resp = requests.post(DISCORD_WEBHOOK_URL, json=payload, timeout=10)
+                if resp.status_code == 429:
+                    try:
+                        retry_after = float(resp.json().get("retry_after", 2))
+                    except Exception:
+                        retry_after = 2.0
+                    logger.warning(f"Discord Webhook rate limited (429). Retrying after {retry_after}s...")
+                    time.sleep(retry_after)
+                    continue
+                elif resp.status_code >= 400:
+                    logger.error(f"Discord Webhook returned status code {resp.status_code}: {resp.text}")
+                    if resp.status_code < 500:
+                        # Client error, no need to retry
+                        break
+                else:
+                    logger.info("Discord Webhook sent successfully.")
+                    break
+            except Exception as e:
+                logger.warning(f"Discord Webhook connection attempt {attempt + 1} failed: {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+                else:
+                    logger.error(f"Failed to send Discord Webhook after {max_retries} attempts.")
     except Exception as e:
-        logger.error(f"Failed to send Discord Webhook: {e}")
-
+        logger.error(f"Failed to prepare or send Discord Webhook: {e}")
 
 # --- API ROUTES ---
 
