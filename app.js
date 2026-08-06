@@ -1,7 +1,7 @@
 // --- CONFIG & GLOBAL STATE ---
 
 // Detect API base URL from query params, local storage, or default to HuggingFace Space
-const DEFAULT_API_BASE = "https://bhugvh-dkcsoft.hf.space";
+const DEFAULT_API_BASE = "https://bhugvh-demobot.hf.space";
 const urlParams = new URLSearchParams(window.location.search);
 const apiParam = urlParams.get("api");
 
