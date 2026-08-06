@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DKC Drawing Video Web Dashboard</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="dark-theme">
+
+
+
+    <!-- 2. Giao diện chính (Main Dashboard) -->
+    <div id="main-dashboard" class="app-container">
+        
+        <!-- SIDEBAR TRÁI (Settings & Configuration) -->
+        <aside class="sidebar-left" id="SidebarFrame">
+            <div class="sidebar-header">
+                <span class="brand-text" id="lbl-brand">AI Drawing Generator</span>
+                <button id="btn-toggle-theme" class="btn-icon" title="Đổi Giao diện">
+                    <svg viewBox="0 0 24 24" class="icon-sun"><path fill="currentColor" d="M12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10Zm0 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6Zm0-9a1 1 0 0 1 1 1v2a1 1 0 0 1-2 0V1a1 1 0 0 1 1-1Zm0 20a1 1 0 0 1 1 1v2a1 1 0 0 1-2 0v-2a1 1 0 0 1 1-1ZM3.51 3.51a1 1 0 0 1 1.42 0l1.41 1.41a1 1 0 0 1-1.41 1.42L3.51 4.93a1 1 0 0 1 0-1.42Zm14.14 14.14a1 1 0 0 1 1.42 0l1.41 1.41a1 1 0 0 1-1.41 1.42l-1.42-1.41a1 1 0 0 1 0-1.42ZM1 11a1 1 0 0 1 1-1h2a1 1 0 0 1 0 2H2a1 1 0 0 1-1-1Zm20 0a1 1 0 0 1 1-1h2a1 1 0 0 1 0 2h-2a1 1 0 0 1-1-1ZM4.93 19.07a1 1 0 0 1 0 1.42l-1.41 1.41a1 1 0 0 1-1.42-1.41l1.41-1.42a1 1 0 0 1 1.42 0Zm14.14-14.14a1 1 0 0 1 0 1.42l-1.41 1.41a1 1 0 0 1-1.42-1.41l1.41-1.42a1 1 0 0 1 1.42 0Z"/></svg>
+                    <svg viewBox="0 0 24 24" class="icon-moon"><path fill="currentColor" d="M12 3a9 9 0 1 0 9 9 9.75 9.75 0 0 0-.67-3.41 1 1 0 0 0-1.2.61A7.22 7.22 0 1 1 13.9 5.37a1 1 0 0 0 .5-1.27A9 9 0 0 0 12 3Z"/></svg>
+                </button>
+            </div>
+
+            <!-- Lựa chọn Chế độ -->
+            <div class="mode-selector">
+                <label class="mode-option">
+                    <input type="radio" name="app-mode" value="video_voice" checked>
+                    <span class="radio-card">Video + Voice</span>
+                </label>
+                <label class="mode-option">
+                    <input type="radio" name="app-mode" value="video_only">
+                    <span class="radio-card">Video only</span>
+                </label>
+            </div>
+
+            <!-- Thanh điều hướng Tab -->
+            <div class="tabs-container">
+                <div class="tab-headers">
+                    <button class="tab-btn active" data-tab="tab-tts" id="tab_tts_btn">Giọng TTS</button>
+                    <button class="tab-btn" data-tab="tab-style" id="tab_style_btn">Nét Vẽ</button>
+                    <button class="tab-btn" data-tab="tab-audio" id="tab_audio_btn">Nhạc & Cam</button>
+                    <button class="tab-btn" data-tab="tab-export" id="tab_export_btn">Xuất Video</button>
+                </div>
+
+                <!-- Nội dung các Tab -->
+                <div class="tab-contents">
+                    <!-- Tab 1: Giọng TTS -->
+                    <div class="tab-pane active" id="tab-tts">
+                        <div class="control-group">
+                            <label id="opt_tts_model">Công nghệ TTS:</label>
+                            <select id="cmb_tts_model">
+                                <option value="Edge-TTS">Edge-TTS</option>
+                                <option value="CapCut TTS">CapCut TTS</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label id="opt_voice">Giọng Đọc (Voice):</label>
+                            <select id="cmb_voice">
+                                <option>Đang tải danh sách giọng đọc...</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <div class="slider-header">
+                                <span id="opt_rate">Tốc độ đọc:</span>
+                                <span id="lbl_rate_val" class="slider-value">+0%</span>
+                            </div>
+                            <input type="range" id="sld_rate" min="-50" max="50" value="0">
+                        </div>
+                        <div class="control-group">
+                            <div class="slider-header">
+                                <span id="opt_pitch">Tông giọng (Pitch):</span>
+                                <span id="lbl_pitch_val" class="slider-value">+0Hz</span>
+                            </div>
+                            <input type="range" id="sld_pitch" min="-20" max="20" value="0">
+                        </div>
+                    </div>
+
+                    <!-- Tab 2: Nét Vẽ -->
+                    <div class="tab-pane" id="tab-style">
+                        <div class="control-group">
+                            <label id="opt_pen">Cọ vẽ:</label>
+                            <div class="flex-row">
+                                <select id="cmb_pen" class="flex-grow">
+                                    <option value="Pencil">Pencil</option>
+                                    <option value="Ink Pen" selected>Ink Pen</option>
+                                    <option value="Marker">Marker</option>
+                                    <option value="Brush">Brush</option>
+                                </select>
+                                <button id="btn_upload_brush" class="btn-secondary compact" title="Tải Cọ Vẽ Tùy Chỉnh">
+                                    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M11 15h2V9h3l-4-5-4 5h3v6Zm-7 2h16v2H4v-2Z"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="control-group">
+                            <label id="opt_bg">Nền giấy:</label>
+                            <div class="flex-row">
+                                <select id="cmb_bg" class="flex-grow">
+                                    <option value="Whiteboard" selected>Bảng trắng</option>
+                                    <option value="Blackboard">Bảng đen</option>
+                                    <option value="Old Paper">Giấy cũ</option>
+                                    <option value="Canvas">Vải Canvas</option>
+                                    <option value="Paper Texture">Vân giấy</option>
+                                </select>
+                                <button id="btn_upload_bg" class="btn-secondary compact" title="Tải Nền Giấy Tùy Chỉnh">
+                                    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M11 15h2V9h3l-4-5-4 5h3v6Zm-7 2h16v2H4v-2Z"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="form-grid">
+                            <div class="control-group">
+                                <label id="opt_color">Màu nét vẽ:</label>
+                                <div class="color-picker-wrapper">
+                                    <input type="color" id="picker_color" value="#000000">
+                                    <div id="frame_color_prev" style="background-color: black;"></div>
+                                </div>
+                            </div>
+                            <div class="control-group">
+                                <label id="opt_color_mode">Chế độ tô màu:</label>
+                                <select id="cmb_color_opt">
+                                    <option value="Only Outline">Only Outline</option>
+                                    <option value="Outline then Color" selected>Outline then Color</option>
+                                    <option value="Outline and Color">Outline and Color</option>
+                                    <option value="Only Color">Only Color</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="control-group">
+                            <div class="slider-header">
+                                <span id="opt_width">Độ dày nét:</span>
+                                <span id="lbl_width_val" class="slider-value">4.0px</span>
+                            </div>
+                            <input type="range" id="sld_width" min="10" max="100" value="40">
+                        </div>
+                    </div>
+
+                    <!-- Tab 3: Nhạc & Cam -->
+                    <div class="tab-pane" id="tab-audio">
+                        <div class="control-group">
+                            <label id="opt_bgm">Nhạc nền (BGM):</label>
+                            <div class="file-uploader" id="bgm-dropzone">
+                                <div class="input-row">
+                                    <input type="text" id="entry_bgm" placeholder="Chưa chọn file nhạc..." readonly>
+                                    <button class="btn-secondary" id="btn-browse-bgm">Chọn</button>
+                                </div>
+                                <input type="file" id="bgm-file-input" accept=".mp3,.wav,.m4a,.ogg" style="display:none;">
+                            </div>
+                        </div>
+                        <div class="control-group">
+                            <div class="slider-header">
+                                <span id="opt_volume_voice">Âm nhạc:</span>
+                                <span id="lbl_mvol_val" class="slider-value">15%</span>
+                            </div>
+                            <input type="range" id="sld_mvol" min="0" max="100" value="15">
+                        </div>
+                        <div class="control-group">
+                            <div class="slider-header">
+                                <span id="opt_volume_voice_read">Âm đọc:</span>
+                                <span id="lbl_vvol_val" class="slider-value">100%</span>
+                            </div>
+                            <input type="range" id="sld_vvol" min="0" max="100" value="100">
+                        </div>
+                        <div class="control-group">
+                            <label id="opt_color_style">Cách tô màu:</label>
+                            <select id="cmb_color_style">
+                                <option value="diagonal_l2r" selected>Tô chéo từ trái sang phải</option>
+                                <option value="diagonal_r2l">Tô chéo từ phải sang trái</option>
+                                <option value="straight_l2r">Tô thẳng từ trái sang phải</option>
+                                <option value="straight_r2l">Tô thẳng từ phải sang trái</option>
+                                <option value="immediate">Hiện ngay lập tức</option>
+                                <option value="gradual">Hiện màu chậm</option>
+                                <option value="random">Sử dụng ngẫu nhiên</option>
+                            </select>
+                        </div>
+                        <div class="checkbox-group">
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="sw_camera" checked>
+                                <span class="checkmark"></span>
+                                <span id="opt_cam">Camera di chuyển theo nét vẽ</span>
+                            </label>
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="sw_smart_order" checked>
+                                <span class="checkmark"></span>
+                                <span id="opt_smart_grid">Tối ưu nét vẽ thông minh (Grid)</span>
+                            </label>
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="sw_slide_transition" checked>
+                                <span class="checkmark"></span>
+                                <span id="opt_slide">Hiệu ứng cuộn trang khi chuyển cảnh</span>
+                            </label>
+                        </div>
+
+                        <div class="divider"></div>
+
+                        <!-- Quản lý logo -->
+                        <div class="logo-section">
+                            <label id="lbl_logo_title">Quản lý Logo:</label>
+                            <select id="cmb_logos">
+                                <option value="" disabled selected>Chọn logo...</option>
+                            </select>
+                            <div class="logo-action-buttons">
+                                <button id="btn_logo_upload" class="btn-secondary flex-grow">Tải Logo</button>
+                                <button id="btn_logo_pos" class="btn-secondary">Vị trí Logo</button>
+                                <button id="btn_logo_del" class="btn-danger-outline">Xóa Logo</button>
+                            </div>
+                            <input type="file" id="logo-file-input" accept=".png,.jpg,.jpeg" style="display:none;">
+                        </div>
+                    </div>
+
+                    <!-- Tab 4: Xuất Video -->
+                    <div class="tab-pane" id="tab-export">
+                        <div class="form-grid">
+                            <div class="control-group">
+                                <label id="opt_res">Độ phân giải:</label>
+                                <select id="cmb_res">
+                                    <option value="1920,1080" selected>1920x1080 (16:9)</option>
+                                    <option value="1280,720">1280x720 (16:9)</option>
+                                    <option value="1080,1080">1080x1080 (1:1)</option>
+                                    <option value="1080,1920">1080x1920 (9:16)</option>
+                                </select>
+                            </div>
+                            <div class="control-group">
+                                <label id="opt_fps">Khung hình (FPS):</label>
+                                <select id="cmb_fps">
+                                    <option value="30" selected>30 FPS</option>
+                                    <option value="60">60 FPS</option>
+                                    <option value="24">24 FPS</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="control-group">
+                            <label id="opt_export_mode">Chế độ xuất video:</label>
+                            <select id="cmb_export_mode">
+                                <option value="merged" selected>Video đã ghép</option>
+                                <option value="scenes">Video từng cảnh</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Các nút tải lên Bulk (Xử lý hàng loạt) -->
+            <div class="bulk-actions-section">
+                <button id="btn_upload_images" class="btn-success">
+                    <svg viewBox="0 0 24 24" width="16" height="16" style="margin-right:6px;"><path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2Z"/></svg>
+                    Tải lên nhiều ảnh & Script
+                </button>
+                <button id="btn_upload_script" class="btn-info">
+                    <svg viewBox="0 0 24 24" width="16" height="16" style="margin-right:6px;"><path fill="currentColor" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Zm2 16H8v-2h8v2Zm0-4H8v-2h8v2Zm-3-5V3.5L18.5 9H13Z"/></svg>
+                    Tải lên Script file
+                </button>
+                <input type="file" id="bulk-images-input" multiple accept=".png,.jpg,.jpeg" style="display:none;">
+                <input type="file" id="bulk-script-input" accept=".txt" style="display:none;">
+            </div>
+
+            <!-- Các nút Lưu / Mở dự án -->
+            <div class="project-actions-grid">
+                <button id="btn_load_proj" class="btn-secondary">Mở Dự Án</button>
+                <button id="btn_save_proj" class="btn-secondary">Lưu Dự Án</button>
+                <input type="file" id="project-file-input" accept=".json" style="display:none;">
+            </div>
+        </aside>
+
+        <!-- PANEL TRUNG TÂM (Storyboard Timeline) -->
+        <main class="center-timeline" id="CenterStoryboardFrame">
+            <div class="timeline-header">
+                <h3 id="storyboard_title">BẢNG PHÂN CẢNH (STORYBOARD)</h3>
+            </div>
+            
+            <!-- Vùng cuộn chứa Scene Row Cards -->
+            <div class="storyboard-scroll" id="storyboard-container">
+                <!-- Javascript will render scenes here dynamically -->
+            </div>
+
+            <!-- Nút thêm phân cảnh mới ở cuối -->
+            <div class="add-scene-wrapper">
+                <button id="btn-add-scene" class="btn-dashed-placeholder">
+                    + Thêm Cảnh Mới
+                </button>
+            </div>
+        </main>
+
+        <!-- PANEL PHẢI (Preview / Player / Controls & System Logs) -->
+        <aside class="sidebar-right" id="RightPlayerFrame">
+            <h3 id="preview_title">XEM TRƯỚC VIDEO</h3>
+            
+            <!-- Video Viewport Frame -->
+            <div class="player-container" id="PlayerFrame">
+                <canvas id="preview-canvas" width="1920" height="1080"></canvas>
+            </div>
+
+            <!-- Status & Progress indicators -->
+            <div class="progress-section">
+                <div class="progress-details">
+                    <span id="lbl_progress">Sẵn sàng.</span>
+                    <span id="lbl_eta">ETA: --:--</span>
+                </div>
+                <div class="progress-bar-wrapper">
+                    <div class="progress-bar-chunk" id="progress-bar-chunk" style="width: 0%;"></div>
+                </div>
+            </div>
+
+            <!-- Action buttons grid -->
+            <div class="render-controls-grid">
+                <button id="btn_render" class="btn-primary">SINH VIDEO VẼ TRANH</button>
+                <button id="btn_cancel" class="btn-secondary" disabled>Hủy</button>
+                <button id="btn_pause" class="btn-secondary" disabled>Tạm Dừng</button>
+                <button id="btn_resume" class="btn-secondary" disabled>Tiếp Tục</button>
+            </div>
+
+            <!-- Hộp nhật ký Log -->
+            <div class="logs-console-section">
+                <h4 id="log_title">NHẬT KÝ HỆ THỐNG</h4>
+                <div class="console-box" id="txt_logs">
+                    [System] Khởi chạy DKC Drawing Video Web Server...
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- 3. Hộp thoại điều chỉnh vị trí logo (Logo Placement Dialog) -->
+    <div id="logo-modal" class="modal-overlay">
+        <div class="logo-dialog-card">
+            <div class="logo-dialog-header">
+                <h3>Chỉnh Vị Trí Logos</h3>
+                <button class="btn-close-modal" id="btn-close-logo-modal">&times;</button>
+            </div>
+            <div class="control-group">
+                <label>Đang chỉnh sửa:</label>
+                <select id="cmb-active-dialog-logo">
+                    <!-- Dropdown loaded dynamically -->
+                </select>
+            </div>
+            
+            <!-- simulated 16:9 canvas dragzone -->
+            <div class="logo-canvas-dragzone" id="logo-dragzone">
+                <div class="canvas-aspect-ratio-box">
+                    <div class="canvas-screen-sim">
+                        <div class="canvas-screen-label">Khung Hình Xuất Video</div>
+                        <!-- absolute positioned logo wrappers will be injected here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- size slider -->
+            <div class="control-group scale-slider-row">
+                <label>Kích thước Logo:</label>
+                <input type="range" id="logo-scale-slider" min="5" max="60" value="15">
+                <span id="lbl-logo-scale-val">15%</span>
+            </div>
+
+            <!-- buttons footer -->
+            <div class="dialog-footer">
+                <button id="btn-save-logo-pos" class="btn-primary">Lưu</button>
+                <button id="btn-cancel-logo-pos" class="btn-secondary">Hủy</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
