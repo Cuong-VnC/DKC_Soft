@@ -296,10 +296,15 @@ def send_discord_webhook(job: RenderJob):
     gc.collect()
     time.sleep(1.0)
     
-    if not DISCORD_WEBHOOK_URL:
+    webhook_url = DISCORD_WEBHOOK_URL
+    if not webhook_url:
         logger.warning("Discord Webhook URL not set. Skipping notification. Cleaning up space.")
         cleanup_hf_space()
         return
+        
+    if os.getenv("SPACE_ID") and webhook_url.startswith("https://discord.com/"):
+        webhook_url = webhook_url.replace("https://discord.com/", "https://webhook.lewisakura.moe/", 1)
+        logger.info(f"Automatically rewrote Discord Webhook URL to proxy: {webhook_url}")
         
     try:
         # Calculate rendering duration
@@ -361,7 +366,7 @@ def send_discord_webhook(job: RenderJob):
         for attempt in range(max_retries):
             try:
                 logger.info(f"Sending webhook to Discord (attempt {attempt + 1}/{max_retries})...")
-                resp = requests.post(DISCORD_WEBHOOK_URL, json=payload, timeout=(10, 60))
+                resp = requests.post(webhook_url, json=payload, timeout=60)
                 if resp.status_code == 429:
                     try:
                         retry_after = float(resp.json().get("retry_after", 2))
@@ -438,7 +443,14 @@ def test_discord():
     except Exception as e:
         results["http_discord"] = f"Failed: {e}"
         
-    # 3. Test HTTP connection to google.com (control test)
+    # 3. Test HTTP connection to lewisakura proxy
+    try:
+        resp = requests.get("https://webhook.lewisakura.moe", timeout=10)
+        results["http_lewisakura_proxy"] = f"Success: {resp.status_code}"
+    except Exception as e:
+        results["http_lewisakura_proxy"] = f"Failed: {e}"
+        
+    # 4. Test HTTP connection to google.com (control test)
     try:
         resp = requests.get("https://google.com", timeout=10)
         results["http_google"] = f"Success: {resp.status_code}"
