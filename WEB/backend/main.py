@@ -339,6 +339,8 @@ def start_render(req: RenderRequest, background_tasks: BackgroundTasks):
             
     def preview_cb(pil_img: Image.Image):
         # Convert PIL to JPEG base64 to stream over Websockets
+        if pil_img.mode != "RGB":
+            pil_img = pil_img.convert("RGB")
         buffered = io.BytesIO()
         pil_img.save(buffered, format="JPEG", quality=65)
         img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")

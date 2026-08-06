@@ -769,6 +769,47 @@ async function handleBulkImagesUpload(e) {
     }
 }
 
+function parseSrtScript(content) {
+    const blocks = content.trim().split(/\n\s*\n/);
+    const results = [];
+    for (const block of blocks) {
+        const lines = block.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        if (lines.length >= 3) {
+            if (lines[1].includes('-->')) {
+                const timestamp = lines[1];
+                const text = lines.slice(2).join(' ');
+                if (text) {
+                    results.push({ script: text, timestamp: timestamp });
+                }
+            } else {
+                let time_line = "";
+                const text_lines = [];
+                for (const line of lines) {
+                    if (line.includes('-->')) {
+                        time_line = line;
+                    } else if (!/^\d+$/.test(line)) {
+                        text_lines.push(line);
+                    }
+                }
+                const text = text_lines.join(' ');
+                if (text) {
+                    results.push({ script: text, timestamp: time_line });
+                }
+            }
+        } else if (lines.length === 2) {
+            if (lines[0].includes('-->')) {
+                results.push({ script: lines[1], timestamp: lines[0] });
+            }
+        } else if (lines.length === 1) {
+            const line = lines[0];
+            if (!/^\d+$/.test(line) && !line.includes('-->')) {
+                results.push({ script: line, timestamp: "" });
+            }
+        }
+    }
+    return results;
+}
+
 async function handleBulkScriptUpload(e) {
     if (e.target.files.length === 0) return;
     const file = e.target.files[0];
@@ -776,19 +817,32 @@ async function handleBulkScriptUpload(e) {
     const reader = new FileReader();
     reader.onload = function(evt) {
         const text = evt.target.result;
+        let results = [];
         
-        // Clean paragraphs
-        const paragraphs = text.split("\n").map(p => p.trim()).filter(p => p.length > 0);
-        appendLog(`[Bulk Script] Đã đọc ${paragraphs.length} đoạn văn bản từ: ${file.name}`);
+        if (file.name.toLowerCase().endsWith(".srt")) {
+            results = parseSrtScript(text);
+        } else {
+            const paragraphs = text.split("\n").map(p => p.trim()).filter(p => p.length > 0);
+            results = paragraphs.map(p => ({ script: p, timestamp: "" }));
+        }
         
-        // Fill script into existing scenes or create new scenes
-        paragraphs.forEach((p, idx) => {
+        appendLog(`[Bulk Script] Đã đọc ${results.length} đoạn văn bản từ: ${file.name}`);
+        
+        // Ask for merge/replace
+        const confirmMerge = confirm("Bạn có muốn ghép kịch bản này vào các cảnh hiện có không?\n(Chọn 'Cancel' sẽ xóa sạch cảnh hiện tại và tạo mới)");
+        if (!confirmMerge) {
+            scenes = [];
+        }
+        
+        results.forEach((item, idx) => {
             if (idx < scenes.length) {
-                scenes[idx].script = p;
+                scenes[idx].script = item.script;
+                scenes[idx].timestamp = item.timestamp;
             } else {
                 addScene({
                     image_path: "",
-                    script: p
+                    script: item.script,
+                    timestamp: item.timestamp
                 });
             }
         });
