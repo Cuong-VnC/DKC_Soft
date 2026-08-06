@@ -122,7 +122,7 @@ ws_clients: Dict[str, List[WebSocket]] = {}
 def global_log_listener(log_line: str):
     """Pushes new system logs to the logs list of all running jobs."""
     for job in jobs_store.values():
-        if job.status in ["running", "paused"]:
+        if job.status in ["running", "paused", "success", "failed"]:
             with job.lock:
                 job.logs.append(log_line)
                 if len(job.logs) > 1000:
