@@ -20,9 +20,13 @@ from pydantic import BaseModel
 from PIL import Image
 import io
 import base64
+import boto3
 
 # Import configurations
-from config import DISCORD_WEBHOOK_URL, UPLOAD_DIR, OUTPUT_DIR, TEMP_DIR, ASSETS_DIR, BASE_DIR
+from config import (
+    DISCORD_WEBHOOK_URL, UPLOAD_DIR, OUTPUT_DIR, TEMP_DIR, ASSETS_DIR, BASE_DIR,
+    R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME
+)
 
 # Add packages to path
 sys.path.append(BASE_DIR)
@@ -130,6 +134,99 @@ def global_log_listener(log_line: str):
 
 register_log_callback(global_log_listener)
 
+def get_r2_client():
+    """Initializes and returns a boto3 client configured for Cloudflare R2."""
+    if not (R2_ACCOUNT_ID and R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY):
+        return None
+    endpoint_url = f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+    return boto3.client(
+        service_name="s3",
+        endpoint_url=endpoint_url,
+        aws_access_key_id=R2_ACCESS_KEY_ID,
+        aws_secret_access_key=R2_SECRET_ACCESS_KEY,
+        region_name="auto"
+    )
+
+def upload_to_r2_and_get_presigned_url(local_filepath: str, filename: str) -> Optional[str]:
+    """Uploads the rendered video file to Cloudflare R2 and returns a 2-hour pre-signed download URL."""
+    try:
+        s3 = get_r2_client()
+        if not s3:
+            logger.warning("Cloudflare R2 credentials not fully set. Skipping upload.")
+            return None
+            
+        if not os.path.exists(local_filepath):
+            logger.error(f"Rendered video file not found at {local_filepath}. Cannot upload to R2.")
+            return None
+            
+        # Object name scheme: render_videos/<uuid>_<filename>
+        object_name = f"render_videos/{uuid.uuid4()}_{filename}"
+        
+        logger.info(f"Uploading {local_filepath} to Cloudflare R2 bucket '{R2_BUCKET_NAME}' as '{object_name}'...")
+        # Upload file
+        s3.upload_file(local_filepath, R2_BUCKET_NAME, object_name)
+        logger.info("Upload to R2 completed successfully.")
+        
+        # Generate presigned download URL for 2 hours (7200 seconds)
+        presigned_url = s3.generate_presigned_url(
+            ClientMethod="get_object",
+            Params={"Bucket": R2_BUCKET_NAME, "Key": object_name},
+            ExpiresIn=7200
+        )
+        logger.info(f"Generated R2 pre-signed download URL.")
+        return presigned_url
+    except Exception as e:
+        logger.error(f"Error uploading to Cloudflare R2: {e}")
+        return None
+
+async def cleanup_r2_periodically():
+    """Periodically checks Cloudflare R2 bucket and deletes objects older than 12 hours."""
+    logger.info("Starting R2 cleanup background task.")
+    while True:
+        try:
+            s3 = get_r2_client()
+            if s3:
+                # List objects inside the bucket
+                paginator = s3.get_paginator('list_objects_v2')
+                pages = paginator.paginate(Bucket=R2_BUCKET_NAME, Prefix="render_videos/")
+                
+                now = time.time()
+                delete_keys = []
+                
+                for page in pages:
+                    for obj in page.get('Contents', []):
+                        key = obj['Key']
+                        last_modified = obj['LastModified']
+                        
+                        last_modified_ts = last_modified.timestamp()
+                        age_seconds = now - last_modified_ts
+                        
+                        # If older than 12 hours (12 * 3600 = 43200 seconds)
+                        if age_seconds > 43200:
+                            delete_keys.append({'Key': key})
+                            logger.info(f"R2 object '{key}' is {age_seconds/3600:.1f} hours old. Marking for deletion.")
+                            
+                if delete_keys:
+                    for i in range(0, len(delete_keys), 1000):
+                        chunk = delete_keys[i:i+1000]
+                        s3.delete_objects(
+                            Bucket=R2_BUCKET_NAME,
+                            Delete={'Objects': chunk}
+                        )
+                        logger.info(f"Deleted {len(chunk)} expired video files from Cloudflare R2.")
+            else:
+                logger.warning("R2 client not initialized. Cannot run R2 cleanup task.")
+        except Exception as e:
+            logger.error(f"Error in R2 cleanup background task: {e}")
+            
+        # Run every 1 hour (3600 seconds)
+        await asyncio.sleep(3600)
+
+@app.on_event("startup")
+async def startup_event():
+    # Start the R2 cleanup loop in the background
+    asyncio.create_task(cleanup_r2_periodically())
+
 # --- WEBHOOK NOTIFIER ---
 
 def send_discord_webhook(job: RenderJob):
@@ -139,49 +236,65 @@ def send_discord_webhook(job: RenderJob):
         return
         
     try:
-        status_emoji = "✅" if job.status == "success" else "❌"
-        status_text = "Render thành công" if job.status == "success" else "Render thất bại"
-        
         # Calculate rendering duration
         elapsed = job.duration if job.duration > 0 else (time.time() - job.start_time)
         minutes = int(elapsed // 60)
         seconds = int(elapsed % 60)
-        time_str = f"{minutes} phút {seconds} giây"
-        
-        # Concatenate script inputs for display
-        scenes = job.settings.get("scenes", [])
-        prompts = []
-        for i, sc in enumerate(scenes[:5]):
-            script_snippet = sc.get("script", "")
-            if script_snippet:
-                prompts.append(f"Cảnh {i+1}: {script_snippet[:100]}...")
-        if len(scenes) > 5:
-            prompts.append(f"...và {len(scenes) - 5} cảnh khác.")
-        prompt_content = "\n".join(prompts) if prompts else "Không có thuyết minh (Video only)"
-        
-        # Build webhook content
-        content = (
-            f"--------------------------------\n"
-            f"🎉 **DKC Video Drawing**\n"
-            f"{status_emoji} {status_text}\n\n"
-            f"📄 **Kịch bản**:\n{prompt_content}\n\n"
-            f"⏱ **Thời gian**: {time_str}\n"
-            f"📅 **Thời điểm**: {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
-            f"👤 **User**: Web Client\n"
-        )
-        
-        if job.status == "success" and job.output_file:
-            content += f"💾 **Download**: `/api/download/{os.path.basename(job.output_file)}`\n"
-        elif job.status == "failed":
-            content += f"⚠️ **Lỗi**: {job.status_text}\n"
+        if minutes > 0:
+            time_str = f"{minutes} phút {seconds} giây"
+        else:
+            time_str = f"{seconds} giây"
             
-        content += f"--------------------------------"
+        r2_url = None
+        if job.status == "success" and job.output_file and os.path.exists(job.output_file):
+            filename = os.path.basename(job.output_file)
+            r2_url = upload_to_r2_and_get_presigned_url(job.output_file, filename)
+            
+        if job.status == "success":
+            filename = os.path.basename(job.output_file) if job.output_file else "video.mp4"
+            size_bytes = os.path.getsize(job.output_file) if job.output_file and os.path.exists(job.output_file) else 0
+            if size_bytes >= 1024 * 1024:
+                size_str = f"{size_bytes / (1024 * 1024):.2f} MB"
+            else:
+                size_str = f"{size_bytes / 1024:.2f} KB"
+                
+            content = (
+                f"✅ **Render thành công**\n"
+                f"├── ⏱ **Thời gian render**: {time_str}\n"
+                f"├── 📁 **Tên file**: `{filename}`\n"
+                f"└── 📦 **Dung lượng**: `{size_str}`"
+            )
+        else:
+            content = (
+                f"❌ **Render thất bại**\n"
+                f"├── ⏱ **Thời gian render**: {time_str}\n"
+                f"└── ⚠️ **Lỗi**: {job.status_text}"
+            )
+            
+        payload = {"content": content}
         
-        resp = requests.post(DISCORD_WEBHOOK_URL, json={"content": content}, timeout=10)
+        # If R2 upload was successful and URL generated, attach a Discord Link Button
+        if r2_url:
+            payload["components"] = [
+                {
+                    "type": 1, # Action Row
+                    "components": [
+                        {
+                            "type": 2, # Button
+                            "style": 5, # Link Button
+                            "label": "Tải video",
+                            "url": r2_url
+                        }
+                    ]
+                }
+            ]
+            
+        resp = requests.post(DISCORD_WEBHOOK_URL, json=payload, timeout=10)
         if resp.status_code >= 400:
             logger.error(f"Discord Webhook returned status code {resp.status_code}: {resp.text}")
     except Exception as e:
         logger.error(f"Failed to send Discord Webhook: {e}")
+
 
 # --- API ROUTES ---
 
