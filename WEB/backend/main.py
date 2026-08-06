@@ -418,6 +418,35 @@ def auth_login(req: LoginRequest):
     else:
         raise HTTPException(status_code=400, detail="Sai tài khoản hoặc mật khẩu!")
 
+@app.get("/api/test-discord")
+def test_discord():
+    import socket
+    import requests
+    results = {}
+    
+    # 1. Test DNS resolution
+    try:
+        ip = socket.gethostbyname("discord.com")
+        results["dns_resolution"] = f"Success: {ip}"
+    except Exception as e:
+        results["dns_resolution"] = f"Failed: {e}"
+        
+    # 2. Test HTTP connection to discord.com
+    try:
+        resp = requests.get("https://discord.com", timeout=10)
+        results["http_discord"] = f"Success: {resp.status_code}"
+    except Exception as e:
+        results["http_discord"] = f"Failed: {e}"
+        
+    # 3. Test HTTP connection to google.com (control test)
+    try:
+        resp = requests.get("https://google.com", timeout=10)
+        results["http_google"] = f"Success: {resp.status_code}"
+    except Exception as e:
+        results["http_google"] = f"Failed: {e}"
+        
+    return results
+
 @app.post("/api/auth/activate")
 def auth_activate(req: ActivateRequest, _ = Depends(check_auth)):
     key = req.key.strip()
