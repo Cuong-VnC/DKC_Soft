@@ -95,6 +95,7 @@ const elements = {
     pickerColor: document.getElementById("picker_color"),
     frameColorPrev: document.getElementById("frame_color_prev"),
     cmbColorOpt: document.getElementById("cmb_color_opt"),
+    cmbDrawDirection: document.getElementById("cmb_draw_direction"),
     sldWidth: document.getElementById("sld_width"),
     lblWidthVal: document.getElementById("lbl_width_val"),
     entryBgm: document.getElementById("entry_bgm"),
@@ -975,6 +976,7 @@ function saveProjectToFile() {
         pen_color: elements.pickerColor.value,
         pen_width: parseFloat(elements.sldWidth.value / 10),
         color_option: elements.cmbColorOpt.value,
+        draw_direction: elements.cmbDrawDirection.value,
         music_path: elements.entryBgm.dataset.serverPath || "",
         music_name: elements.entryBgm.value || "",
         voice_volume: parseFloat(elements.sldVvol.value / 100),
@@ -1042,6 +1044,7 @@ function loadProjectFromFile(e) {
                 elements.lblWidthVal.textContent = `${data.pen_width.toFixed(1)}px`;
             }
             if (data.color_option) elements.cmbColorOpt.value = data.color_option;
+            if (data.draw_direction) elements.cmbDrawDirection.value = data.draw_direction;
             if (data.music_name) {
                 elements.entryBgm.value = data.music_name;
                 elements.entryBgm.dataset.serverPath = data.music_path;
@@ -1120,6 +1123,7 @@ async function triggerRenderStart() {
             pen_color: hexToRgb(elements.pickerColor.value),
             pen_width: parseFloat(elements.sldWidth.value / 10),
             color_option: elements.cmbColorOpt.value,
+            draw_direction: elements.cmbDrawDirection.value,
             music_path: elements.entryBgm.dataset.serverPath || "",
             voice_volume: parseFloat(elements.sldVvol.value / 100),
             music_volume: parseFloat(elements.sldMvol.value / 100),
