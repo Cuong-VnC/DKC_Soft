@@ -335,8 +335,12 @@ def send_discord_webhook(job: RenderJob):
                 f"✅ **Render thành công**\n"
                 f"├── ⏱ **Thời gian render**: {time_str}\n"
                 f"├── 📁 **Tên file**: `{filename}`\n"
-                f"└── 📦 **Dung lượng**: `{size_str}`"
+                f"├── 📦 **Dung lượng**: `{size_str}`\n"
             )
+            if r2_url:
+                content += f"└── 📥 **[BẤM VÀO ĐÂY ĐỂ TẢI VIDEO]({r2_url})**"
+            else:
+                content += f"└── 📥 **Tải về**: Không tìm thấy link"
         else:
             content = (
                 f"❌ **Render thất bại**\n"
