@@ -1198,3 +1198,263 @@ body.light-theme .scene-script-text {
 ::-webkit-scrollbar-thumb:hover {
     background: var(--border-hover);
 }
+
+/* --- MOBILE RESPONSIVE MEDIA QUERIES --- */
+@media (max-width: 768px) {
+    html, body {
+        height: auto !important;
+        overflow: auto !important;
+        user-select: text !important;
+    }
+    
+    .app-container {
+        display: flex !important;
+        flex-direction: column !important;
+        height: auto !important;
+        width: 100% !important;
+        overflow: visible !important;
+    }
+    
+    /* Layout Ordering on Mobile */
+    #RightPlayerFrame {
+        order: 1 !important;
+        border-left: none !important;
+        border-bottom: 2px solid var(--border-color) !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        height: auto !important;
+        overflow: visible !important;
+    }
+    
+    #CenterStoryboardFrame {
+        order: 2 !important;
+        border-bottom: 2px solid var(--border-color) !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        height: auto !important;
+        overflow: visible !important;
+    }
+    
+    #SidebarFrame {
+        order: 3 !important;
+        border-right: none !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        height: auto !important;
+        overflow: visible !important;
+    }
+    
+    /* Scroll containers overflow fixes */
+    .tabs-container,
+    .tab-contents,
+    .storyboard-scroll {
+        overflow: visible !important;
+        height: auto !important;
+        max-height: none !important;
+    }
+    
+    /* Horizontal scroll for Tabs Headers */
+    .tab-headers {
+        display: flex !important;
+        overflow-x: auto !important;
+        white-space: nowrap !important;
+        scrollbar-width: none !important;
+        -webkit-overflow-scrolling: touch !important;
+        gap: 4px !important;
+        border-bottom: 1px solid var(--border-color) !important;
+        padding-bottom: 2px !important;
+    }
+    
+    .tab-headers::-webkit-scrollbar {
+        display: none !important;
+    }
+    
+    .tab-btn {
+        flex: 0 0 auto !important;
+        padding: 8px 12px !important;
+        font-size: 11px !important;
+        width: auto !important;
+        min-height: 32px !important;
+        border-bottom: 1px solid var(--border-color) !important;
+    }
+    
+    .tab-btn.active {
+        border-bottom: 1px solid var(--bg-sidebar) !important;
+        margin-bottom: 0 !important;
+    }
+    
+    /* Touch target sizing */
+    select, input[type="text"], input[type="number"], button {
+        min-height: 34px !important;
+    }
+    
+    /* Scene card vertical re-layout using Grid */
+    .scene-row-card {
+        height: auto !important;
+        display: grid !important;
+        grid-template-areas:
+            "handle delete"
+            "thumb content"
+            "trans trans" !important;
+        grid-template-columns: 120px 1fr !important;
+        grid-template-rows: auto auto auto !important;
+        gap: 8px 12px !important;
+        align-items: center !important;
+        padding: 12px !important;
+    }
+    
+    .scene-index-handle {
+        grid-area: handle !important;
+        width: auto !important;
+        text-align: left !important;
+        padding: 4px 0 !important;
+    }
+    
+    .btn-scene-delete {
+        grid-area: delete !important;
+        margin-left: auto !important;
+    }
+    
+    .scene-thumbnail-btn {
+        grid-area: thumb !important;
+        width: 120px !important;
+        height: 68px !important;
+    }
+    
+    .scene-content-vbox {
+        grid-area: content !important;
+        width: 100% !important;
+        height: auto !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 4px !important;
+        justify-content: center !important;
+    }
+    
+    .scene-script-text {
+        height: 68px !important;
+        width: 100% !important;
+    }
+    
+    .scene-row-card.has-timestamp .scene-script-text {
+        height: 44px !important;
+    }
+    
+    .scene-timestamp-row {
+        margin-top: 2px !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 6px !important;
+    }
+    
+    .scene-timestamp-row input {
+        width: 100px !important;
+        height: 24px !important;
+    }
+    
+    /* Scene video-only time spinner */
+    .scene-time-container {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 6px !important;
+        height: auto !important;
+    }
+    
+    .time-spinner-vbox {
+        flex-direction: row !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        width: 100% !important;
+        gap: 8px !important;
+    }
+    
+    .time-spinner-vbox span {
+        font-size: 10px !important;
+        white-space: nowrap !important;
+    }
+    
+    .time-spinner-vbox input[type="number"] {
+        width: 70px !important;
+        height: 26px !important;
+        padding: 2px 4px !important;
+    }
+    
+    /* Scene transition box */
+    .scene-transition-vbox {
+        grid-area: trans !important;
+        width: 100% !important;
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 8px !important;
+        border-top: 1px solid var(--border-card) !important;
+        padding-top: 8px !important;
+        margin-top: 4px !important;
+    }
+    
+    .scene-transition-vbox span {
+        margin-bottom: 0 !important;
+    }
+    
+    .scene-transition-vbox select {
+        width: 160px !important;
+        height: 28px !important;
+    }
+    
+    /* Side padding adjustments for inner forms */
+    .bulk-actions-section {
+        padding: 10px 0 !important;
+    }
+    
+    .project-actions-grid {
+        padding: 0 0 10px 0 !important;
+        gap: 8px !important;
+    }
+    
+    /* Console box size */
+    .console-box {
+        max-height: 220px !important;
+        min-height: 120px !important;
+    }
+    
+    /* Logo Position Dialog scale */
+    .logo-dialog-card {
+        width: 95% !important;
+        max-width: 500px !important;
+        padding: 12px !important;
+        gap: 8px !important;
+    }
+    
+    .logo-canvas-dragzone {
+        padding: 10px !important;
+    }
+    
+    .canvas-aspect-ratio-box {
+        max-width: 100% !important;
+    }
+}
+
+@media (max-width: 480px) {
+    /* Logo actions wrap */
+    .logo-action-buttons {
+        flex-wrap: wrap !important;
+        gap: 6px !important;
+    }
+    
+    .logo-action-buttons button {
+        flex: 1 1 calc(50% - 4px) !important;
+        min-height: 32px !important;
+    }
+    
+    .logo-action-buttons button:last-child {
+        flex: 1 1 100% !important;
+    }
+    
+    /* Auth Card width */
+    .auth-card {
+        width: 92% !important;
+        padding: 20px 15px !important;
+    }
+}
+
